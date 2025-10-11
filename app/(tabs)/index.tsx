@@ -1,98 +1,244 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions
+} from 'react-native';
+import { useTranslation } from 'react-i18next';
+import ttsService from '../../services/ttsService';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const { t } = useTranslation();
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  useEffect(() => {
+    speakGreeting();
+    return () => {
+      ttsService.stop();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const speakGreeting = async () => {
+    try {
+      setIsSpeaking(true);
+      await ttsService.speak(t('homeGreeting'), {
+        onDone: () => setIsSpeaking(false),
+        onStopped: () => setIsSpeaking(false),
+      });
+    } catch (error) {
+      console.error('Error speaking greeting:', error);
+      setIsSpeaking(false);
+    }
+  };
+
+  const handleStopSpeaking = async () => {
+    await ttsService.stop();
+    setIsSpeaking(false);
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>EyeMate</Text>
+        <Text style={styles.subtitle}>{t('homeGreeting')}</Text>
+      </View>
+
+      <View style={styles.actionContainer}>
+        <TouchableOpacity
+          style={styles.mainButton}
+          accessibilityLabel="Parler à EyeMate"
+        >
+          <Text style={styles.mainButtonIcon}>🎤</Text>
+          <Text style={styles.mainButtonText}>Appuyez pour parler</Text>
+        </TouchableOpacity>
+
+        <View style={styles.secondaryButtons}>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={speakGreeting}
+            accessibilityLabel="Répéter"
+          >
+            <Text style={styles.secondaryButtonIcon}>🔊</Text>
+            <Text style={styles.secondaryButtonText}>{t('repeat')}</Text>
+          </TouchableOpacity>
+
+          {isSpeaking && (
+            <TouchableOpacity
+              style={[styles.secondaryButton, styles.stopButton]}
+              onPress={handleStopSpeaking}
+              accessibilityLabel="Arrêter"
+            >
+              <Text style={styles.secondaryButtonIcon}>⏹️</Text>
+              <Text style={styles.secondaryButtonText}>{t('stop')}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.featuresContainer}>
+        <TouchableOpacity
+          style={styles.featureButton}
+          accessibilityLabel={t('describe')}
+        >
+          <Text style={styles.featureIcon}>📷</Text>
+          <Text style={styles.featureText}>{t('describe')}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.featureButton}
+          accessibilityLabel={t('read')}
+        >
+          <Text style={styles.featureIcon}>📖</Text>
+          <Text style={styles.featureText}>{t('read')}</Text>
+        </TouchableOpacity>
+
+
+        <TouchableOpacity
+          style={styles.featureButton}
+          accessibilityLabel={t('settings')}
+        >
+          <Text style={styles.featureIcon}>⚙️</Text>
+          <Text style={styles.featureText}>{t('settings')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {isSpeaking && (
+        <View style={styles.statusIndicator}>
+          <Text style={styles.statusText}>🔊 {t('speaking')}</Text>
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    backgroundColor: '#2563eb',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  title: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 18,
+    color: '#e0f2fe',
+    textAlign: 'center',
+  },
+  actionContainer: {
     alignItems: 'center',
-    gap: 8,
+    marginTop: 40,
+    paddingHorizontal: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  mainButton: {
+    width: width * 0.6,
+    height: width * 0.6,
+    borderRadius: (width * 0.6) / 2,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  mainButtonIcon: {
+    fontSize: 70,
+    marginBottom: 10,
+  },
+  mainButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButtons: {
+    flexDirection: 'row',
+    marginTop: 30,
+    gap: 15,
+  },
+  secondaryButton: {
+    backgroundColor: '#fff',
+    paddingVertical: 15,
+    paddingHorizontal: 25,
+    borderRadius: 15,
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  stopButton: {
+    backgroundColor: '#ef4444',
+  },
+  secondaryButtonIcon: {
+    fontSize: 24,
+    marginBottom: 5,
+  },
+  secondaryButtonText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  featuresContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+    marginTop: 40,
+    gap: 15,
+  },
+  featureButton: {
+    width: (width - 60) / 2,
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  featureIcon: {
+    fontSize: 40,
+    marginBottom: 10,
+  },
+  featureText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  statusIndicator: {
     position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
+    backgroundColor: '#2563eb',
+    padding: 15,
+    borderRadius: 15,
+    alignItems: 'center',
+  },
+  statusText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
