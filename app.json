@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow EyeMate to save photos to your gallery",
+        "NSMicrophoneUsageDescription": "Allow EyeMate to access your microphone for voice commands"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,9 +26,14 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.nefzimalek.EyeMate",
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "READ_EXTERNAL_STORAGE"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.ACCESS_MEDIA_LOCATION"
       ]
     },
     "web": {
@@ -47,6 +56,29 @@
       ],
       "expo-web-browser",
       "expo-secure-store",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow EyeMate to save photos to your gallery",
+          "savePhotosPermission": "Allow EyeMate to save photos",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow EyeMate to access your camera to analyze your environment",
+          "microphonePermission": "Allow EyeMate to access your microphone for voice commands",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "@react-native-voice/voice",
+        {
+          "microphonePermission": "Allow EyeMate to access your microphone for voice commands",
+          "speechRecognitionPermission": "Allow EyeMate to use speech recognition"
+        }
+      ],
       "expo-localization"
     ],
     "experiments": {

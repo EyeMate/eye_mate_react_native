@@ -7,12 +7,14 @@ import {
   Dimensions
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
 import ttsService from '../../services/ttsService';
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [isSpeaking, setIsSpeaking] = useState(false);
 
   useEffect(() => {
@@ -39,6 +41,14 @@ export default function HomeScreen() {
   const handleStopSpeaking = async () => {
     await ttsService.stop();
     setIsSpeaking(false);
+  };
+
+  const openCamera = () => {
+    router.push('/(tabs)/Camera');
+  };
+
+  const openSettings = () => {
+    router.push('/(tabs)/settings');
   };
 
   return (
@@ -83,6 +93,7 @@ export default function HomeScreen() {
       <View style={styles.featuresContainer}>
         <TouchableOpacity
           style={styles.featureButton}
+          onPress={openCamera}
           accessibilityLabel={t('describe')}
         >
           <Text style={styles.featureIcon}>📷</Text>
@@ -97,9 +108,9 @@ export default function HomeScreen() {
           <Text style={styles.featureText}>{t('read')}</Text>
         </TouchableOpacity>
 
-
         <TouchableOpacity
           style={styles.featureButton}
+          onPress={openSettings}
           accessibilityLabel={t('settings')}
         >
           <Text style={styles.featureIcon}>⚙️</Text>

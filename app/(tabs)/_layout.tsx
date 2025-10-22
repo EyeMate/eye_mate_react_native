@@ -1,12 +1,8 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { useTranslation } from 'react-i18next';
-import { Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function TabLayout() {
-  const { t } = useTranslation();
-
   return (
     <Tabs
       screenOptions={{
@@ -26,6 +22,15 @@ export default function TabLayout() {
           title: 'Accueil',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="camera"
+        options={{
+          title: 'Caméra',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="camera-outline" size={size} color={color} />
           ),
         }}
       />
