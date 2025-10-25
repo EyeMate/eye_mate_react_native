@@ -35,6 +35,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="VoiceTest"
+        options={{
+          title: 'Test Vocal',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="mic-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: 'Paramètres',
