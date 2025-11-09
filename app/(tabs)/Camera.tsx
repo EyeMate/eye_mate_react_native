@@ -1,17 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
-  Dimensions,
-  Vibration,
-} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    Vibration,
+    View,
+} from 'react-native';
 import fileService from '../../services/fileService';
+import imageAnalysisService from '../../services/imageAnalysisService';
 import ttsService from '../../services/ttsService';
 
 const { width, height } = Dimensions.get('window');
@@ -22,6 +23,9 @@ export default function CameraScreen() {
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [isAutoCapture, setIsAutoCapture] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState({ current: 0, total: 0 });
+  const [analysisResult, setAnalysisResult] = useState<string>('');
   const cameraRef = useRef<CameraView>(null);
   const router = useRouter();
 
@@ -50,6 +54,8 @@ export default function CameraScreen() {
       // Petit délai avant la première photo
       await new Promise(resolve => setTimeout(resolve, 3000));
       
+      const capturedImagesLocal: string[] = [];
+      
       for (let i = 1; i <= 3; i++) {
         // Feedback vocal avant chaque photo
         if (i === 1) {
@@ -71,18 +77,26 @@ export default function CameraScreen() {
         const fileUri = await takeSinglePicture(i);
         
         if (fileUri) {
-          setCapturedImages(prev => [...prev, fileUri]);
+          console.log(`📸 Photo ${i} captured:`, fileUri);
+          capturedImagesLocal.push(fileUri);
+          setCapturedImages(prev => {
+            const newImages = [...prev, fileUri];
+            console.log('📸 Updated capturedImages:', newImages);
+            return newImages;
+          });
           setCurrentStep(i);
           
           // Feedback de confirmation
           await ttsService.speak(`Photo ${i} prise avec succès`);
         } else {
+          console.log(`❌ Failed to capture photo ${i}`);
           await ttsService.speak(`Erreur lors de la photo ${i}`);
         }
       }
       
       // Toutes les photos sont prises
-      await finishCapture();
+      console.log('📸 All photos captured locally:', capturedImagesLocal);
+      await finishCapture(capturedImagesLocal);
       
     } catch (error) {
       console.error('Error in auto capture:', error);
@@ -116,29 +130,63 @@ export default function CameraScreen() {
     }
   };
 
-  const finishCapture = async () => {
+  const finishCapture = async (imagesToAnalyze: string[]) => {
+    console.log('🎯 finishCapture called');
+    console.log('🎯 imagesToAnalyze:', imagesToAnalyze);
+    console.log('🎯 imagesToAnalyze.length:', imagesToAnalyze.length);
+    
     await ttsService.speak("Capture terminée. Analyse de l'environnement en cours...");
     
-    // Simulation d'analyse avec Florence-2
-    // Ici vous intégrerez votre modèle d'IA
-    setTimeout(async () => {
-      try {
-        // Pour l'instant, on simule une analyse basique
-        const analysisResult = "Analyse terminée. Votre environnement contient plusieurs objets détectés. Retour à l'accueil dans 3 secondes.";
-        await ttsService.speak(analysisResult);
-        
-        // Retour à l'accueil après l'analyse
-        setTimeout(() => {
-          router.back();
-        }, 3000);
-      } catch (error) {
-        console.error('Error in analysis:', error);
-        await ttsService.speak("Erreur lors de l'analyse. Retour à l'accueil.");
-        setTimeout(() => {
-          router.back();
-        }, 2000);
+    try {
+      setIsAnalyzing(true);
+      setAnalysisProgress({ current: 0, total: imagesToAnalyze.length });
+      
+      console.log('🎯 Starting image analysis...');
+      
+      // Analyze all captured images
+      const descriptions = await imageAnalysisService.analyzeMultipleImages(
+        imagesToAnalyze,
+        (current, total) => {
+          setAnalysisProgress({ current, total });
+          console.log(`🖼️ Analysis progress: ${current}/${total}`);
+        },
+        (error) => {
+          console.error('Analysis error:', error);
+          ttsService.speak("Erreur lors de l'analyse des images");
+        }
+      );
+      
+      // Concatenate all descriptions
+      const finalResult = imageAnalysisService.concatenateDescriptions(descriptions);
+      setAnalysisResult(finalResult);
+      
+      console.log('🖼️ Final analysis result:', finalResult);
+      
+      // Speak the result
+      await ttsService.speak("Analyse terminée. Voici la description de votre environnement:");
+      
+      // Speak each image description
+      for (let i = 0; i < descriptions.length; i++) {
+        await ttsService.speak(`Image ${i + 1}: ${descriptions[i]}`);
       }
-    }, 4000);
+      
+      // Navigate to results screen
+      setTimeout(() => {
+        router.push({
+          pathname: '/AnalysisResults',
+          params: { result: finalResult }
+        });
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Error in analysis:', error);
+      await ttsService.speak("Erreur lors de l'analyse. Retour à l'accueil.");
+      setTimeout(() => {
+        router.back();
+      }, 2000);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const cancelCapture = async () => {
@@ -231,16 +279,25 @@ export default function CameraScreen() {
 
           {/* Indicateurs de progression */}
           <View style={styles.progressContainer}>
-            {[1, 2, 3].map((step) => (
-              <View
-                key={step}
-                style={[
-                  styles.progressDot,
-                  step <= currentStep && styles.progressDotActive,
-                  step === currentStep + 1 && isAutoCapture && styles.progressDotNext,
-                ]}
-              />
-            ))}
+            {isAnalyzing ? (
+              <View style={styles.analysisProgress}>
+                <ActivityIndicator size="small" color="#2563eb" />
+                <Text style={styles.analysisProgressText}>
+                  Analyse: {analysisProgress.current}/{analysisProgress.total}
+                </Text>
+              </View>
+            ) : (
+              [1, 2, 3].map((step) => (
+                <View
+                  key={step}
+                  style={[
+                    styles.progressDot,
+                    step <= currentStep && styles.progressDotActive,
+                    step === currentStep + 1 && isAutoCapture && styles.progressDotNext,
+                  ]}
+                />
+              ))
+            )}
           </View>
 
           {/* Contrôles */}
@@ -280,17 +337,19 @@ export default function CameraScreen() {
             </View>
           </View>
 
-          {/* Instructions vocales */}
-          <View style={styles.instructions}>
-            <Text style={styles.instructionsText}>
-              {isAutoCapture 
-                ? `Photo ${currentStep + 1} sur 3 dans quelques secondes...`
-                : currentStep >= 3
-                  ? "Analyse en cours..."
-                  : "Démarrage automatique de la capture..."
-              }
-            </Text>
-          </View>
+            {/* Instructions vocales */}
+            <View style={styles.instructions}>
+              <Text style={styles.instructionsText}>
+                {isAnalyzing 
+                  ? `Analyse en cours... ${analysisProgress.current}/${analysisProgress.total} images`
+                  : isAutoCapture 
+                    ? `Photo ${currentStep + 1} sur 3 dans quelques secondes...`
+                    : currentStep >= 3
+                      ? "Analyse en cours..."
+                      : "Démarrage automatique de la capture..."
+                }
+              </Text>
+            </View>
         </View>
       </CameraView>
     </View>
@@ -389,6 +448,16 @@ const styles = StyleSheet.create({
   progressDotNext: {
     backgroundColor: '#10b981',
     transform: [{ scale: 1.1 }],
+  },
+  analysisProgress: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  analysisProgressText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   controls: {
     alignItems: 'center',
