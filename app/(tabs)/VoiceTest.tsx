@@ -1,24 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-  Vibration,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import voiceToTextService from '../../services/voiceToTextService';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    Vibration,
+    View
+} from 'react-native';
 import ttsService from '../../services/ttsService';
+import voiceToTextService from '../../services/voiceToTextService';
 
 export default function VoiceTestScreen() {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
+
+  useEffect(() => {
+    if (transcript) {
+      console.log('🎤 Transcript state updated in UI:', transcript);
+    }
+  }, [transcript]);
   const [isAvailable, setIsAvailable] = useState<boolean>(false);
   const router = useRouter();
 
@@ -48,18 +53,23 @@ export default function VoiceTestScreen() {
   const startListening = async () => {
     try {
       setError('');
+      setTranscript('');
       setIsLoading(true);
       
       const success = await voiceToTextService.startListening(
         (text: string) => {
           console.log('🎤 Transcript received:', text);
-          setTranscript(prev => prev + ' ' + text);
+          const cleanedText = text.trim();
+          setTranscript(cleanedText);
+          setError('');
+          setIsLoading(false);
           Vibration.vibrate(100); // Haptic feedback
         },
         (error: string) => {
           console.error('🎤 Error:', error);
           setError(error);
           setIsListening(false);
+          setIsLoading(false);
         }
       );
 
@@ -81,12 +91,26 @@ export default function VoiceTestScreen() {
 
   const stopListening = async () => {
     try {
-      await voiceToTextService.stopListening();
+      setIsLoading(true);
+      const result = await voiceToTextService.stopListening();
       setIsListening(false);
+      
+      if (result && result.trim()) {
+        const cleanedResult = result.trim();
+        setTranscript(cleanedResult);
+        setError('');
+      }
+      
       await ttsService.speak("Écoute arrêtée");
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error stopping listening:', error);
-      setError('Erreur lors de l\'arrêt');
+      const message =
+        error?.message && typeof error.message === 'string'
+          ? error.message
+          : 'Erreur lors de l\'arrêt de l\'écoute';
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
   };
 

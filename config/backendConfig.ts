@@ -2,8 +2,8 @@
 // Update this with your computer's IP address
 
 export const BACKEND_CONFIG = {
-  // Your computer's IP address (found with ifconfig)
-  BASE_URL: 'http://192.168.1.14:8002',
+  // Florence-2 backend base URL (deployed server)
+  BASE_URL: 'http://20.19.32.74:8000',
   ENDPOINT: '/infer',
   
   // Full URL
@@ -18,8 +18,4 @@ export const BACKEND_CONFIG = {
   REQUEST_DELAY: 3000,
 };
 
-// Instructions for finding your IP:
-// Windows: ipconfig
-// Mac/Linux: ifconfig
-// Look for "IPv4 Address" or "inet" under your WiFi/Ethernet adapter
-// Example: 192.168.1.100, 10.0.0.50, etc.
+// If you redeploy the backend, update BASE_URL with the new host (e.g. http://<ip>:<port>)

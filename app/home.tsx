@@ -1,33 +1,34 @@
 //home.tsx
-import React, { useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import SherpaOnnx from "react-native-sherpa-onnx-offline-tts";
+import React, { useEffect } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import ttsService from "../services/ttsService";
 
 export default function Home() {
   const { voice, lang } = useLocalSearchParams<{ voice: string; lang: string }>();
 
   useEffect(() => {
-    const initAndSpeak = async () => {
+    const speakGreeting = async () => {
       try {
-        // Initialisation avec un identifiant de modèle (string)
-        await SherpaOnnx.initialize("default-model");
+        const selectedLanguage = lang === "fr" ? "fr" : "en";
+        const selectedVoice = voice === "female" ? "female" : "male";
+
+        ttsService.setLanguage(selectedLanguage);
+        ttsService.setVoiceGender(selectedVoice);
 
         const text =
-          lang === "fr"
+          selectedLanguage === "fr"
             ? "Comment puis-je vous aider aujourd'hui ?"
             : "How can I help you today?";
 
-        // Utilisation de generateAndPlay au lieu de speak
-        // sid = speaker ID, speed = vitesse de lecture
-        await SherpaOnnx.generateAndPlay(text, 0, 1.0);
-      } catch (e) {
-        console.error("Erreur TTS:", e);
+        await ttsService.speak(text);
+      } catch (error) {
+        console.error("Erreur TTS:", error);
       }
     };
 
-    initAndSpeak();
-  }, [lang]); // Ajout de lang comme dépendance
+    speakGreeting();
+  }, [lang, voice]);
 
   return (
     <View style={styles.container}>

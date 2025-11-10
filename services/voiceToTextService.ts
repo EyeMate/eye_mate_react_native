@@ -71,7 +71,8 @@ class VoiceToTextService {
     }
   }
 
-  async stopListening(): Promise<void> {
+  async stopListening(): Promise<string | null> {
+    let transcriptText: string | null = null;
     try {
       if (this.recording && this.isRecording) {
         console.log("🎤 Stopping recording...");
@@ -87,21 +88,31 @@ class VoiceToTextService {
         
         if (uri) {
           // Transcribe the audio file using AssemblyAI
-          await this.transcribeAudioFile(uri);
+          transcriptText = await this.transcribeAudioFile(uri);
+          
+          if (transcriptText && this.onResultCallback) {
+            this.onResultCallback(transcriptText);
+          }
         }
       }
       
-      this.onResultCallback = null;
-      this.onErrorCallback = null;
+      return transcriptText;
     } catch (error) {
       console.error("Error stopping voice recognition:", error);
       // Reset state even on error
       this.recording = null;
       this.isRecording = false;
+      if (error instanceof Error && this.onErrorCallback) {
+        this.onErrorCallback(error.message);
+      }
+      return null;
+    } finally {
+      this.onResultCallback = null;
+      this.onErrorCallback = null;
     }
   }
 
-  private async transcribeAudioFile(audioUri: string) {
+  private async transcribeAudioFile(audioUri: string): Promise<string> {
     try {
       console.log("🎤 Sending audio to AssemblyAI for transcription...");
       
@@ -154,18 +165,25 @@ class VoiceToTextService {
       console.log("🎤 Transcription ID:", transcriptId);
 
       // Poll for transcription result
-      await this.pollTranscriptResult(transcriptId);
-
+      const transcriptText = await this.pollTranscriptResult(transcriptId);
+      return transcriptText;
     } catch (error: any) {
       console.error("Error transcribing audio:", error);
+      
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.message ||
+        'Transcription failed';
+      
       if (this.onErrorCallback) {
-        const errorMessage = error.response?.data?.error || error.message || 'Transcription failed';
         this.onErrorCallback(errorMessage);
       }
+      
+      throw new Error(errorMessage);
     }
   }
 
-  private async pollTranscriptResult(transcriptId: string) {
+  private async pollTranscriptResult(transcriptId: string): Promise<string> {
     const pollingEndpoint = `${this.BASE_URL}/v2/transcript/${transcriptId}`;
     const maxAttempts = 30;
     let attempts = 0;
@@ -182,10 +200,10 @@ class VoiceToTextService {
 
         if (transcriptionResult.status === "completed") {
           console.log("🎤 Transcription completed:", transcriptionResult.text);
-          if (this.onResultCallback && transcriptionResult.text) {
-            this.onResultCallback(transcriptionResult.text);
+          if (transcriptionResult.text) {
+            return transcriptionResult.text;
           }
-          return;
+          throw new Error('Transcription completed but no text returned');
         } else if (transcriptionResult.status === "error") {
           throw new Error(`Transcription failed: ${transcriptionResult.error}`);
         } else {
