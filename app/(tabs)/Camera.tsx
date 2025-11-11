@@ -20,107 +20,80 @@ const { width, height } = Dimensions.get('window');
 export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isRecording, setIsRecording] = useState(false);
-  const [capturedImages, setCapturedImages] = useState<string[]>([]);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [isAutoCapture, setIsAutoCapture] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisProgress, setAnalysisProgress] = useState({ current: 0, total: 0 });
   const [analysisResult, setAnalysisResult] = useState<string>('');
   const cameraRef = useRef<CameraView>(null);
   const router = useRouter();
 
   useEffect(() => {
     if (permission?.granted) {
-      // Démarrer automatiquement les captures après un court délai
+      // Démarrer automatiquement après un court délai
       const timer = setTimeout(() => {
         startAutoCapture();
-      }, 2000); // Délai de 2 secondes pour laisser le temps à la caméra de s'initialiser
+      }, 2000);
       
       return () => clearTimeout(timer);
     }
   }, [permission]);
 
-  // Fonction pour démarrer automatiquement les captures
+  // Fonction pour démarrer automatiquement la capture
   const startAutoCapture = async () => {
-    if (isRecording || isAutoCapture) return;
+    if (isRecording) return;
     
     try {
       setIsRecording(true);
-      setIsAutoCapture(true);
       
       // Instructions vocales
-      await ttsService.speak("Démarrage automatique de la reconnaissance d'environnement. L'application va prendre 3 photos successives avec un délai de 3 secondes entre chaque photo.");
+      await ttsService.speak("Démarrage de la reconnaissance d'environnement. L'application va prendre une photo dans 3 secondes pour une analyse détaillée.");
       
-      // Petit délai avant la première photo
+      // Délai avant la photo
       await new Promise(resolve => setTimeout(resolve, 3000));
       
-      const capturedImagesLocal: string[] = [];
+      // Feedback sonore et vibration
+      Vibration.vibrate(100);
       
-      for (let i = 1; i <= 3; i++) {
-        // Feedback vocal avant chaque photo
-        if (i === 1) {
-          await ttsService.speak("Première photo dans 3 secondes");
-        } else if (i === 2) {
-          await ttsService.speak("Deuxième photo dans 3 secondes");
-        } else {
-          await ttsService.speak("Dernière photo dans 3 secondes");
-        }
+      // Prise de photo
+      await ttsService.speak("Capture en cours");
+      const fileUri = await takeSinglePicture();
+      
+      if (fileUri) {
+        console.log('📸 Photo capturée:', fileUri);
+        setCapturedImage(fileUri);
         
-        // Délai de 3 secondes pour permettre à l'utilisateur de se préparer
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Feedback de confirmation
+        await ttsService.speak("Photo prise avec succès. Analyse en cours...");
         
-        // Feedback sonore et vibration
-        Vibration.vibrate(100);
-        
-        // Prise de photo
-        await ttsService.speak("Capture");
-        const fileUri = await takeSinglePicture(i);
-        
-        if (fileUri) {
-          console.log(`📸 Photo ${i} captured:`, fileUri);
-          capturedImagesLocal.push(fileUri);
-          setCapturedImages(prev => {
-            const newImages = [...prev, fileUri];
-            console.log('📸 Updated capturedImages:', newImages);
-            return newImages;
-          });
-          setCurrentStep(i);
-          
-          // Feedback de confirmation
-          await ttsService.speak(`Photo ${i} prise avec succès`);
-        } else {
-          console.log(`❌ Failed to capture photo ${i}`);
-          await ttsService.speak(`Erreur lors de la photo ${i}`);
-        }
+        // Lancer l'analyse immédiatement
+        await analyzeImage(fileUri);
+      } else {
+        console.log('❌ Échec de la capture');
+        await ttsService.speak("Erreur lors de la capture");
+        setIsRecording(false);
       }
-      
-      // Toutes les photos sont prises
-      console.log('📸 All photos captured locally:', capturedImagesLocal);
-      await finishCapture(capturedImagesLocal);
       
     } catch (error) {
       console.error('Error in auto capture:', error);
       await ttsService.speak("Erreur lors de la capture automatique");
       setIsRecording(false);
-      setIsAutoCapture(false);
     }
   };
 
   // Fonction pour prendre une seule photo
-  const takeSinglePicture = async (stepNumber: number): Promise<string | null> => {
+  const takeSinglePicture = async (): Promise<string | null> => {
     try {
       if (!cameraRef.current) return null;
       
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
+        quality: 0.7, // Qualité réduite pour une analyse plus rapide
         base64: true,
         skipProcessing: true,
       });
 
       if (photo.base64) {
-        const filename = fileService.generateFilename(`capture_${stepNumber}`);
+        const filename = fileService.generateFilename('environment_capture');
         const fileUri = await fileService.saveImage(photo.base64, filename);
-        console.log(`📸 Photo ${stepNumber} sauvegardée:`, fileUri);
+        console.log('📸 Photo sauvegardée:', fileUri);
         return fileUri;
       }
       return null;
@@ -130,53 +103,41 @@ export default function CameraScreen() {
     }
   };
 
-  const finishCapture = async (imagesToAnalyze: string[]) => {
-    console.log('🎯 finishCapture called');
-    console.log('🎯 imagesToAnalyze:', imagesToAnalyze);
-    console.log('🎯 imagesToAnalyze.length:', imagesToAnalyze.length);
-    
-    await ttsService.speak("Capture terminée. Analyse de l'environnement en cours...");
+  const analyzeImage = async (imageUri: string) => {
+    console.log('🎯 Début de l\'analyse de l\'image');
     
     try {
       setIsAnalyzing(true);
-      setAnalysisProgress({ current: 0, total: imagesToAnalyze.length });
       
-      console.log('🎯 Starting image analysis...');
+      console.log('🎯 Analyse de l\'image en cours...');
       
-      // Analyze all captured images
-      const descriptions = await imageAnalysisService.analyzeMultipleImages(
-        imagesToAnalyze,
-        (current, total) => {
-          setAnalysisProgress({ current, total });
-          console.log(`🖼️ Analysis progress: ${current}/${total}`);
+      // Analyse d'une seule image avec prompt détaillé
+      const description = await imageAnalysisService.analyzeImage(
+        imageUri,
+        (result) => {
+          console.log('🖼️ Résultat de l\'analyse:', result);
         },
         (error) => {
-          console.error('Analysis error:', error);
-          ttsService.speak("Erreur lors de l'analyse des images");
+          console.error('Erreur d\'analyse:', error);
+          ttsService.speak("Erreur lors de l'analyse de l'image");
         }
       );
       
-      // Concatenate all descriptions
-      const finalResult = imageAnalysisService.concatenateDescriptions(descriptions);
-      setAnalysisResult(finalResult);
+      setAnalysisResult(description);
       
-      console.log('🖼️ Final analysis result:', finalResult);
+      console.log('🖼️ Résultat final:', description);
       
-      // Speak the result
-      await ttsService.speak("Analyse terminée. Voici la description de votre environnement:");
+      // Lire le résultat
+      await ttsService.speak("Analyse terminée. Voici la description détaillée de votre environnement:");
+      await ttsService.speak(description);
       
-      // Speak each image description
-      for (let i = 0; i < descriptions.length; i++) {
-        await ttsService.speak(`Image ${i + 1}: ${descriptions[i]}`);
-      }
-      
-      // Navigate to results screen
+      // Naviguer vers l'écran des résultats
       setTimeout(() => {
         router.push({
           pathname: '/AnalysisResults',
-          params: { result: finalResult }
+          params: { result: description }
         });
-      }, 2000);
+      }, 1000);
       
     } catch (error) {
       console.error('Error in analysis:', error);
@@ -186,35 +147,23 @@ export default function CameraScreen() {
       }, 2000);
     } finally {
       setIsAnalyzing(false);
+      setIsRecording(false);
     }
   };
 
   const cancelCapture = async () => {
-    if (isAutoCapture) {
-      await ttsService.speak("Capture annulée");
-    }
-    setCapturedImages([]);
-    setCurrentStep(0);
-    setIsAutoCapture(false);
+    await ttsService.speak("Capture annulée");
+    setCapturedImage(null);
     setIsRecording(false);
     await fileService.clearAllImages();
     router.back();
   };
 
-  // Fonction pour arrêter la capture en cours
-  const stopCapture = async () => {
-    if (isAutoCapture) {
-      setIsAutoCapture(false);
-      setIsRecording(false);
-      await ttsService.speak("Capture arrêtée manuellement");
-    }
-  };
-
-  // Fonction pour redémarrer les captures manuellement
+  // Fonction pour redémarrer la capture manuellement
   const restartCapture = async () => {
-    if (!isAutoCapture && !isRecording) {
-      setCapturedImages([]);
-      setCurrentStep(0);
+    if (!isRecording) {
+      setCapturedImage(null);
+      setAnalysisResult('');
       await startAutoCapture();
     }
   };
@@ -259,97 +208,87 @@ export default function CameraScreen() {
               <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
             <Text style={styles.title}>Reconnaissance d environnement</Text>
-            <View style={styles.stepsContainer}>
-              <Text style={styles.stepsText}>
-                {currentStep}/3 photos
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>
+                {isAnalyzing ? 'Analyse' : 'Capture'}
               </Text>
             </View>
           </View>
 
-          {/* Guide de cadrage vocal uniquement */}
+          {/* Guide de cadrage */}
           <View style={styles.focusFrame}>
             <View style={styles.focusFrameBorder} />
             <Text style={styles.focusText}>
-              {isAutoCapture 
-                ? `Capture automatique en cours... Photo ${currentStep + 1} sur 3`
-                : "Capture automatique démarrera bientôt"
+              {isRecording 
+                ? "Capture automatique en cours..."
+                : isAnalyzing
+                  ? "Analyse détaillée en cours..."
+                  : "Prise de photo unique"
               }
             </Text>
           </View>
 
-          {/* Indicateurs de progression */}
+          {/* Indicateur de progression */}
           <View style={styles.progressContainer}>
             {isAnalyzing ? (
               <View style={styles.analysisProgress}>
-                <ActivityIndicator size="small" color="#2563eb" />
+                <ActivityIndicator size="large" color="#2563eb" />
                 <Text style={styles.analysisProgressText}>
-                  Analyse: {analysisProgress.current}/{analysisProgress.total}
+                  Analyse détaillée en cours...
                 </Text>
               </View>
             ) : (
-              [1, 2, 3].map((step) => (
-                <View
-                  key={step}
-                  style={[
-                    styles.progressDot,
-                    step <= currentStep && styles.progressDotActive,
-                    step === currentStep + 1 && isAutoCapture && styles.progressDotNext,
-                  ]}
-                />
-              ))
+              <View style={styles.singleStepIndicator}>
+                <View style={[
+                  styles.stepDot,
+                  capturedImage ? styles.stepDotCompleted : styles.stepDotActive
+                ]} />
+                <Text style={styles.stepText}>
+                  {capturedImage ? '✅ Photo prise' : '📸 Prise de photo'}
+                </Text>
+              </View>
             )}
           </View>
 
           {/* Contrôles */}
           <View style={styles.controls}>
-            {/* Bouton d'arrêt pendant la capture */}
-            {(isRecording || isAutoCapture) && (
-              <TouchableOpacity
-                style={styles.stopButton}
-                onPress={stopCapture}
-                accessibilityLabel="Arrêter la capture en cours"
-              >
-                <Text style={styles.stopButtonText}>⏹️ Arrêter</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Bouton de redémarrage quand la capture est terminée ou arrêtée */}
-            {(!isAutoCapture && !isRecording && currentStep < 3) && (
+            {/* Bouton de redémarrage */}
+            {!isRecording && !isAnalyzing && (
               <TouchableOpacity
                 style={styles.restartButton}
                 onPress={restartCapture}
                 accessibilityLabel="Redémarrer la capture"
               >
-                <Text style={styles.restartButtonText}>🔄 Redémarrer</Text>
+                <Text style={styles.restartButtonText}>🔄 Nouvelle capture</Text>
               </TouchableOpacity>
             )}
 
             {/* Indicateur de statut */}
             <View style={styles.statusContainer}>
               <Text style={styles.statusText}>
-                {isAutoCapture 
-                  ? `🔴 Capture en cours... (${currentStep}/3)`
-                  : currentStep >= 3 
-                    ? "✅ Capture terminée"
-                    : "🟢 Prêt au démarrage"
+                {isAnalyzing 
+                  ? "🔴 Analyse en cours..."
+                  : isRecording
+                    ? "🟡 Capture..."
+                    : capturedImage
+                      ? "✅ Capture terminée"
+                      : "🟢 Prêt"
                 }
               </Text>
             </View>
           </View>
 
-            {/* Instructions vocales */}
-            <View style={styles.instructions}>
-              <Text style={styles.instructionsText}>
-                {isAnalyzing 
-                  ? `Analyse en cours... ${analysisProgress.current}/${analysisProgress.total} images`
-                  : isAutoCapture 
-                    ? `Photo ${currentStep + 1} sur 3 dans quelques secondes...`
-                    : currentStep >= 3
-                      ? "Analyse en cours..."
-                      : "Démarrage automatique de la capture..."
-                }
-              </Text>
-            </View>
+          {/* Instructions */}
+          <View style={styles.instructions}>
+            <Text style={styles.instructionsText}>
+              {isAnalyzing 
+                ? "Analyse détaillée de l'environnement..."
+                : isRecording
+                  ? "Photo dans quelques instants..."
+                  : "Capture automatique en attente..."
+              }
+            </Text>
+          </View>
         </View>
       </CameraView>
     </View>
@@ -392,13 +331,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flex: 1,
   },
-  stepsContainer: {
+  statusBadge: {
     backgroundColor: 'rgba(0,0,0,0.7)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 15,
   },
-  stepsText: {
+  statusBadgeText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
@@ -428,35 +367,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   progressContainer: {
-    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 15,
     paddingVertical: 20,
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  progressDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  progressDotActive: {
-    backgroundColor: '#2563eb',
-    transform: [{ scale: 1.2 }],
-  },
-  progressDotNext: {
-    backgroundColor: '#10b981',
-    transform: [{ scale: 1.1 }],
-  },
-  analysisProgress: {
+  singleStepIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
+  stepDot: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+  },
+  stepDotActive: {
+    backgroundColor: '#2563eb',
+    transform: [{ scale: 1.2 }],
+  },
+  stepDotCompleted: {
+    backgroundColor: '#10b981',
+  },
+  stepText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  analysisProgress: {
+    alignItems: 'center',
+    gap: 15,
+  },
   analysisProgressText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   controls: {
@@ -465,18 +409,6 @@ const styles = StyleSheet.create({
     gap: 15,
     backgroundColor: 'rgba(0,0,0,0.5)',
     paddingTop: 20,
-  },
-  stopButton: {
-    backgroundColor: '#ef4444',
-    paddingHorizontal: 25,
-    paddingVertical: 12,
-    borderRadius: 25,
-    elevation: 5,
-  },
-  stopButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   restartButton: {
     backgroundColor: '#10b981',

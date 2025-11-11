@@ -78,7 +78,8 @@
           "microphonePermission": "Allow EyeMate to access your microphone for voice recording"
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true,

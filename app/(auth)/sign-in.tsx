@@ -210,7 +210,7 @@ export default function SignInPage() {
             <Text style={styles.linkText}>Pas encore de compte ? </Text>
             <Link href="/(auth)/sign-up" asChild>
               <TouchableOpacity disabled={loading}>
-                <Text style={styles.link}>S\inscrire</Text>
+                <Text style={styles.link}>S&apos;inscrire</Text>
               </TouchableOpacity>
             </Link>
           </View>
