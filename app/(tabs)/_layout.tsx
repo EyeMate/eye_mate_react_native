@@ -1,8 +1,19 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
-
+import { useAuth } from '@clerk/clerk-expo';
 export default function TabLayout() {
+   const { isSignedIn, isLoaded } = useAuth();
+
+  // Attendre que Clerk soit chargé
+  if (!isLoaded) {
+    return null;
+  }
+
+  // Si l'utilisateur n'est pas connecté, rediriger vers la connexion
+  if (!isSignedIn) {
+    return <Redirect href="/(auth)/sign-in" />;
+  }
   return (
     <Tabs
       screenOptions={{
@@ -47,6 +58,15 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: 'Paramètres',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" size={size} color={color} />
+          ),
+        }}
+      />
+     <Tabs.Screen
+        name="ReadDocument"
+        options={{
+          title: 'Lire Document',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="settings-outline" size={size} color={color} />
           ),

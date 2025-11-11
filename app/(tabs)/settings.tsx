@@ -1,12 +1,16 @@
-//(tabs)/settings.tsx
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+// app/(tabs)/settings.tsx
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Image } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSettings } from '../../contexts/SettingsContext';
-import ttsService from '../../services/ttsService';
+import { useAuth, useUser } from '@clerk/clerk-expo';
+import { useRouter } from 'expo-router';
 
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const { language, voiceGender, changeLanguage, changeVoiceGender } = useSettings();
+  const { signOut } = useAuth();
+  const { user } = useUser();
+  const router = useRouter();
 
   const handleVoiceGenderChange = async (newGender: 'male' | 'female') => {
     console.log('🎭 Changing voice gender from', voiceGender, 'to', newGender);
@@ -24,9 +28,31 @@ export default function SettingsScreen() {
     await changeLanguage(newLanguage);
   };
 
-  
-
-  
+  const handleSignOut = () => {
+    Alert.alert(
+      'Déconnexion',
+      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Déconnexion',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+              router.replace('/(auth)/sign-in');
+            } catch (error) {
+              console.error('Erreur lors de la déconnexion:', error);
+              Alert.alert('Erreur', 'Impossible de se déconnecter');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -35,6 +61,42 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.content}>
+        {/* Section Profil Utilisateur */}
+        <View style={styles.profileSection}>
+          <View style={styles.profileHeader}>
+            {user?.imageUrl ? (
+              <Image
+                source={{ uri: user.imageUrl }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={[styles.profileImage, styles.profileImagePlaceholder]}>
+                <Text style={styles.profileImageText}>
+                  {user?.firstName?.[0] || user?.emailAddresses[0]?.emailAddress[0].toUpperCase() || '?'}
+                </Text>
+              </View>
+            )}
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>
+                {user?.firstName && user?.lastName
+                  ? `${user.firstName} ${user.lastName}`
+                  : user?.firstName || 'Utilisateur'}
+              </Text>
+              <Text style={styles.profileEmail}>
+                {user?.primaryEmailAddress?.emailAddress || 'email@example.com'}
+              </Text>
+              {user?.createdAt && (
+                <Text style={styles.profileDate}>
+                  Membre depuis {new Date(user.createdAt).toLocaleDateString('fr-FR', {
+                    month: 'long',
+                    year: 'numeric'
+                  })}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
+
         {/* Section Langue */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('chooseLanguage')}</Text>
@@ -98,7 +160,6 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        
         {/* Autres paramètres */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Compte</Text>
@@ -137,11 +198,16 @@ export default function SettingsScreen() {
             <Text style={styles.menuText}>Contactez-nous</Text>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem}>
+            <Text style={styles.menuIcon}>ℹ️</Text>
+            <Text style={styles.menuText}>Version 1.0.0</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Bouton déconnexion */}
-        <TouchableOpacity style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Déconnexion</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
+          <Text style={styles.logoutText}>🚪 Déconnexion</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -169,6 +235,56 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  profileSection: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  profileImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    marginRight: 15,
+  },
+  profileImagePlaceholder: {
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileImageText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  profileEmail: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  profileDate: {
+    fontSize: 12,
+    color: '#999',
+    fontStyle: 'italic',
   },
   section: {
     backgroundColor: '#fff',
@@ -221,17 +337,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#2563eb',
-  },
-  testButton: {
-    backgroundColor: '#10b981',
-    padding: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  testButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   menuItem: {
     flexDirection: 'row',

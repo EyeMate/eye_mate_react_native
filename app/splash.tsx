@@ -1,20 +1,28 @@
+// app/splash.tsx
 import { useEffect } from 'react';
 import { Text, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@clerk/clerk-expo';
 
 export default function SplashScreen() {
   const router = useRouter();
+  const { isSignedIn, isLoaded } = useAuth();
 
   useEffect(() => {
+    if (!isLoaded) return;
+
     const timer = setTimeout(() => {
-      // Vérifier si l'utilisateur est connecté
-      // Pour l'instant, on redirige vers register
-      router.replace('/register');
+      // Rediriger vers la page appropriée selon l'état de connexion
+      if (isSignedIn) {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/(auth)/sign-in');
+      }
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [isLoaded, isSignedIn]);
 
   return (
     <LinearGradient
