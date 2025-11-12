@@ -15,7 +15,7 @@ export const BACKEND_CONFIG = {
 PROMPT: 'Describe in detail what you see in this image, including objects, colors, and their positions.',
   
   // Delay between requests (in milliseconds)
-  REQUEST_DELAY: 1000,
+  REQUEST_DELAY: 500,
 };
 
 // If you redeploy the backend, update BASE_URL with the new host (e.g. http://<ip>:<port>)
